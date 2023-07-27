@@ -1,4 +1,3 @@
-#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,9 +29,14 @@ enum ExecuteResult {
 };
 
 struct Statement {
-        long num_1;
-        long num_2;
+        char *num_1;
+        char *num_2;
         int op;
+};
+
+struct Values {
+        double num_1;
+        double num_2;
 };
 
 struct InputBuf {
@@ -72,17 +76,17 @@ void close_input_buf(struct InputBuf *buf)
 }
 
 /* STATEMENT PARSING */
-int define_statement(struct InputBuf *buf, struct Statement *stat)
+int read_statement_to_struct(struct InputBuf *buf, struct Statement *stat)
 {
-        char *strptr;
-
         if (buf->buffer[0] == '.') {
                 return OP_META;
         }
 
-        stat->num_1 = strtol(buf->buffer, &strptr, 10);
-        char *operation = strtok(strptr, " 012345689");
-        stat->num_2 = strtol(buf->buffer, &strptr, 10);
+        stat->num_1 = strtok(buf->buffer, " ");
+        printf("num1: %s\n", stat->num_1);
+        char *operation = strtok(NULL, " 012345689");
+        printf("operation: %s\n", operation);
+        stat->num_2 = strtok(NULL, " ");
 
         if (strcmp(operation, "+") == 0) {
                 stat->op = OP_ADD;
@@ -104,22 +108,28 @@ int define_statement(struct InputBuf *buf, struct Statement *stat)
         return OP_UNKNOWN;
 }
 
-int run_statement(struct Statement *stat)
+void convert_data_to_doubles(struct Statement *stat, struct Values *vals)
+{
+        vals->num_1 = strtod(stat->num_1, NULL);
+        vals->num_2 = strtod(stat->num_2, NULL);
+}
+
+int run_statement(struct Statement *stat, struct Values *vals)
 {
         double res;
 
         switch (stat->op) {
                 case (OP_ADD):
-                        res = stat->num_1 + stat->num_2;
+                        res = vals->num_1 + vals->num_2;
                         break;
                 case (OP_SUBTRACT):
-                        res = stat->num_1 - stat->num_2;
+                        res = vals->num_1 - vals->num_2;
                         break;
                 case (OP_MULTIPLY):
-                        res = stat->num_1 * stat->num_2;
+                        res = vals->num_1 * vals->num_2;
                         break;
                 case (OP_DIVIDE):
-                        res = stat->num_1 / stat->num_2;
+                        res = vals->num_1 / vals->num_2;
                         break;
                 case (OP_ERR):
                         return EXEC_FAILURE;
@@ -141,14 +151,13 @@ int run_meta(struct InputBuf *buf)
 /* M A I N */
 int main(void)
 {
-        struct InputBuf *buf = new_input_buf();
-                
         for (;;) {
+                struct InputBuf *buf = new_input_buf();
                 printf(">> ");
                 read_input_to_buf(buf);
 
                 struct Statement stat;
-                switch (define_statement(buf, &stat)) {
+                switch (read_statement_to_struct(buf, &stat)) {
                         case (OP_OK):
                                 break;
                         case (OP_META):
@@ -164,12 +173,17 @@ int main(void)
                                 continue;
                 }
 
-                switch (run_statement(&stat)) {
+                struct Values vals;
+                convert_data_to_doubles(&stat, &vals);
+
+                switch (run_statement(&stat, &vals)) {
                         case (EXEC_SUCCESS):
                                 break;
                         case (EXEC_FAILURE):
                                 printf("Error executing statement.\n");
                                 exit(EXIT_FAILURE);
                 }
+
+                close_input_buf(buf);
         }
 }
