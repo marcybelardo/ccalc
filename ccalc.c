@@ -31,12 +31,13 @@ enum ExecuteResult {
 struct Statement {
         char *num_1;
         char *num_2;
-        int op;
+        char *op;
 };
 
 struct Values {
         double num_1;
         double num_2;
+        int op;
 };
 
 struct InputBuf {
@@ -76,33 +77,43 @@ void close_input_buf(struct InputBuf *buf)
 }
 
 /* STATEMENT PARSING */
-int read_statement_to_struct(struct InputBuf *buf, struct Statement *stat)
+int parse_tokens(char *str, struct Statement *stat)
+{
+        stat->num_1 = strtok(str, " +-*/");
+        // printf("num1 \t'%s'\n", stat->num_1);
+
+        stat->op = strtok(NULL, " 0123456789");
+        // printf("op  \t'%s'\n", stat->op);
+
+        stat->num_2 = strtok(NULL, " ");
+        // printf("num2 \t'%s'\n", stat->num_2);
+
+        return 0;
+}
+
+int read_statement_to_struct(struct InputBuf *buf, struct Statement *stat, struct Values *vals)
 {
         if (buf->buffer[0] == '.') {
                 return OP_META;
         }
 
-        stat->num_1 = strtok(buf->buffer, " ");
-        printf("num1: %s\n", stat->num_1);
-        char *operation = strtok(NULL, " 012345689");
-        printf("operation: %s\n", operation);
-        stat->num_2 = strtok(NULL, " ");
+        if (parse_tokens(buf->buffer, stat) != 0) {
+                return -1;
+        }
 
-        if (strcmp(operation, "+") == 0) {
-                stat->op = OP_ADD;
-                return OP_OK;
-        }
-        if (strcmp(operation, "-") == 0) {
-                stat->op = OP_SUBTRACT;
-                return OP_OK;
-        }
-        if (strcmp(operation, "*") == 0) {
-                stat->op = OP_MULTIPLY;
-                return OP_OK;
-        }
-        if (strcmp(operation, "/") == 0) {
-                stat->op = OP_DIVIDE;
-                return OP_OK;
+        switch (*stat->op) {
+                case ('+'):
+                        vals->op = OP_ADD;
+                        return OP_OK;
+                case ('-'):
+                        vals->op = OP_SUBTRACT;
+                        return OP_OK;
+                case ('*'):
+                        vals->op = OP_MULTIPLY;
+                        return OP_OK;
+                case ('/'):
+                        vals->op = OP_DIVIDE;
+                        return OP_OK;
         }
 
         return OP_UNKNOWN;
@@ -114,11 +125,11 @@ void convert_data_to_doubles(struct Statement *stat, struct Values *vals)
         vals->num_2 = strtod(stat->num_2, NULL);
 }
 
-int run_statement(struct Statement *stat, struct Values *vals)
+int run_statement(struct Values *vals)
 {
         double res;
 
-        switch (stat->op) {
+        switch (vals->op) {
                 case (OP_ADD):
                         res = vals->num_1 + vals->num_2;
                         break;
@@ -157,7 +168,8 @@ int main(void)
                 read_input_to_buf(buf);
 
                 struct Statement stat;
-                switch (read_statement_to_struct(buf, &stat)) {
+                struct Values vals;
+                switch (read_statement_to_struct(buf, &stat, &vals)) {
                         case (OP_OK):
                                 break;
                         case (OP_META):
@@ -169,14 +181,12 @@ int main(void)
                                                 continue;
                                 }
                         case (OP_UNKNOWN):
-                                printf("Unrecognized operation: %d\n", stat.op);
+                                printf("Unrecognized operation: %s\n", stat.op);
                                 continue;
                 }
 
-                struct Values vals;
                 convert_data_to_doubles(&stat, &vals);
-
-                switch (run_statement(&stat, &vals)) {
+                switch (run_statement(&vals)) {
                         case (EXEC_SUCCESS):
                                 break;
                         case (EXEC_FAILURE):
